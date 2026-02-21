@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
 
         const leaderboard = top5.map((u, i) => ({
             rank: i + 1,
+            userId: (u._id as { toString(): string }).toString(),
             name: u.name as string,
             totalXP: u.totalXP as number,
             level: u.level as number,

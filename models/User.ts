@@ -12,6 +12,7 @@ export interface IUser extends Document {
   skillsXP: number
   mindsetXP: number
   careerXP: number
+  isProfilePublic: boolean
   createdAt: Date
 }
 
@@ -28,12 +29,14 @@ const UserSchema = new Schema<IUser>(
     skillsXP: { type: Number, default: 0, min: 0 },
     mindsetXP: { type: Number, default: 0, min: 0 },
     careerXP: { type: Number, default: 0, min: 0 },
+    // Privacy: default to PRIVATE — users must explicitly opt in to public
+    isProfilePublic: { type: Boolean, default: false },
   },
   { timestamps: true }
 )
 
-
-
-
-const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema)
+// Force fresh compile every time so schema changes (like isProfilePublic)
+// are always applied and never stripped by Mongoose strict mode
+delete mongoose.models['User']
+const User = mongoose.model<IUser>('User', UserSchema)
 export default User

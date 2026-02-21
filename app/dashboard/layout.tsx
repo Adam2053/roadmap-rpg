@@ -6,7 +6,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <AuthProvider>
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="pt-16">{children}</main>
+        <main className="pt-14 md:pt-16 pb-20 md:pb-0">{children}</main>
       </div>
     </AuthProvider>
   )

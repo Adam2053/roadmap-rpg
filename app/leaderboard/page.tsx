@@ -4,13 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Trophy, Zap, Flame, ArrowLeft, RefreshCw, Crown,
-    TrendingUp, Users, Medal, Loader2, Star
+    TrendingUp, Users, Medal, Loader2, Star, User
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
+import UserProfileModal from '@/components/UserProfileModal'
 
 interface LeaderboardEntry {
     rank: number
+    userId: string
     name: string
     totalXP: number
     level: number
@@ -62,6 +64,7 @@ export default function LeaderboardPage() {
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+    const [selectedUser, setSelectedUser] = useState<{ userId: string; name: string } | null>(null)
 
     const fetchLeaderboard = useCallback(async (silent = false) => {
         if (!silent) setLoading(true)
@@ -160,7 +163,8 @@ export default function LeaderboardPage() {
                         return (
                             <div
                                 key={entry.rank}
-                                className={`relative glass rounded-2xl border overflow-hidden transition-all duration-300 ${cfg.border} ${entry.isMe ? 'ring-2 ring-purple-500/50' : ''}`}
+                                onClick={() => !entry.isMe && setSelectedUser({ userId: entry.userId, name: entry.name })}
+                                className={`relative glass rounded-2xl border overflow-hidden transition-all duration-300 ${cfg.border} ${entry.isMe ? 'ring-2 ring-purple-500/50' : 'cursor-pointer hover:scale-[1.01] hover:shadow-lg hover:shadow-purple-500/10'}`}
                             >
                                 {/* Rank gradient overlay */}
                                 <div className={`absolute inset-0 bg-gradient-to-r ${cfg.bg} pointer-events-none`} />
@@ -184,6 +188,12 @@ export default function LeaderboardPage() {
                                                 {entry.isMe && (
                                                     <span className="text-[10px] font-bold bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-full px-2 py-0.5 flex-shrink-0">
                                                         YOU
+                                                    </span>
+                                                )}
+                                                {!entry.isMe && (
+                                                    <span className="text-[10px] font-medium bg-white/5 border border-white/8 text-white/30 rounded-full px-2 py-0.5 flex-shrink-0 flex items-center gap-1">
+                                                        <User className="h-2.5 w-2.5" />
+                                                        View
                                                     </span>
                                                 )}
                                                 <span className="text-xs font-semibold text-white/40 bg-white/5 border border-white/8 rounded-md px-1.5 py-0.5 whitespace-nowrap">
@@ -277,6 +287,14 @@ export default function LeaderboardPage() {
                     ))}
                 </div>
             </div>
+            {/* ── User Profile Modal ── */}
+            {selectedUser && (
+                <UserProfileModal
+                    userId={selectedUser.userId}
+                    entryName={selectedUser.name}
+                    onClose={() => setSelectedUser(null)}
+                />
+            )}
         </div>
     )
 }

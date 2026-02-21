@@ -10,6 +10,7 @@ export interface IRoadmap extends Document {
   duration: number
   weeklyPlan: RoadmapWeek[]
   progress: number
+  isPublic: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -53,6 +54,7 @@ const RoadmapSchema = new Schema<IRoadmap>(
     duration: { type: Number, required: true, min: 1 },
     weeklyPlan: [WeekSchema],
     progress: { type: Number, default: 0, min: 0, max: 100 },
+    isPublic: { type: Boolean, default: false },
   },
   { timestamps: true }
 )
