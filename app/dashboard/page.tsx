@@ -178,32 +178,32 @@ export default function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {roadmaps.map(rm => (
               <Link
                 key={rm._id}
                 href={`/roadmap/${rm._id}`}
-                className="glass rounded-2xl p-5 hover:bg-white/10 transition-all duration-300 group"
+                className="glass rounded-2xl p-5 hover:bg-white/10 transition-all duration-300 group overflow-hidden w-full"
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm truncate group-hover:text-purple-300 transition-colors">
+                    <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-purple-300 transition-colors break-words">
                       {rm.title || rm.goal}
                     </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${rm.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-md font-medium whitespace-nowrap ${rm.difficulty === 'hard' ? 'bg-red-500/20 text-red-300' :
                         rm.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
                           'bg-green-500/20 text-green-300'
                         }`}>
                         {rm.difficulty}
                       </span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
+                      <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+                        <Clock className="h-3 w-3 flex-shrink-0" />
                         {rm.duration}w
                       </span>
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-purple-400 transition-colors flex-shrink-0 ml-2" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-purple-400 transition-colors flex-shrink-0" />
                 </div>
                 <div>
                   <div className="flex justify-between text-xs text-muted-foreground mb-1">

@@ -235,8 +235,8 @@ export default function RoadmapViewPage() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-wrap items-center gap-1.5 min-w-0">
               <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-md font-semibold whitespace-nowrap ${roadmap.difficulty === 'hard' ? 'bg-red-500/20    text-red-300    border border-red-500/25' :
-                  roadmap.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/25' :
-                    'bg-green-500/20  text-green-300  border border-green-500/25'
+                roadmap.difficulty === 'medium' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/25' :
+                  'bg-green-500/20  text-green-300  border border-green-500/25'
                 }`}>
                 {roadmap.difficulty === 'easy' ? '🌱 Easy' : roadmap.difficulty === 'medium' ? '⚔️ Medium' : '🔥 Hard'}
               </span>
@@ -333,53 +333,54 @@ export default function RoadmapViewPage() {
             <div key={week.week} className="glass rounded-2xl overflow-hidden">
 
               {/* Week header */}
-              <div className="flex items-center gap-3 p-3 sm:p-4 hover:bg-white/5 transition-colors">
+              <div className="p-3 sm:p-4 hover:bg-white/5 transition-colors">
+                <div className="flex items-start gap-3">
 
-                {/* Expand toggle + week number */}
-                <button
-                  onClick={() => toggleWeek(week.week)}
-                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                >
-                  <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0">
+                  {/* Week number badge */}
+                  <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-purple-300 font-bold text-xs sm:text-sm">{week.week}</span>
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <h3 className="font-bold text-sm sm:text-base truncate">{week.focus}</h3>
-                      {weekPct === 100 && <Trophy className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{week.milestone}</p>
-                  </div>
-                </button>
-
-                {/* Right side: progress + Resources button + chevron */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs font-semibold text-purple-300 tabular-nums hidden xs:inline">
-                    {weekPct}%
-                  </span>
-
-                  {/* ── Per-module Resources button ── */}
+                  {/* Focus + milestone — clickable to expand */}
                   <button
-                    onClick={() => setActiveResourceModal({ week: week.week, weekFocus: week.focus })}
-                    title="Module resources"
-                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-indigo-500/25 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all whitespace-nowrap"
+                    onClick={() => toggleWeek(week.week)}
+                    className="flex-1 min-w-0 text-left"
                   >
-                    <BookOpen className="h-3 w-3" />
-                    <span className="hidden sm:inline">Resources</span>
-                    {weekResCount > 0 && (
-                      <span className="bg-indigo-500/30 text-indigo-200 rounded-full px-1.5 py-px text-[10px] font-bold leading-none">
-                        {weekResCount}
-                      </span>
-                    )}
+                    <div className="flex items-start gap-1.5">
+                      <h3 className="font-bold text-sm sm:text-base leading-snug break-words">{week.focus}</h3>
+                      {weekPct === 100 && <Trophy className="h-3.5 w-3.5 text-yellow-400 flex-shrink-0 mt-0.5" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-snug break-words">{week.milestone}</p>
                   </button>
 
-                  <button onClick={() => toggleWeek(week.week)}>
-                    {isExpanded
-                      ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                      : <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    }
-                  </button>
+                  {/* Right side: progress % + Resources + chevron */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-xs font-semibold text-purple-300 tabular-nums hidden xs:inline">
+                      {weekPct}%
+                    </span>
+
+                    {/* ── Per-module Resources button ── */}
+                    <button
+                      onClick={() => setActiveResourceModal({ week: week.week, weekFocus: week.focus })}
+                      title="Module resources"
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-indigo-500/25 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all whitespace-nowrap"
+                    >
+                      <BookOpen className="h-3 w-3" />
+                      <span className="hidden sm:inline">Resources</span>
+                      {weekResCount > 0 && (
+                        <span className="bg-indigo-500/30 text-indigo-200 rounded-full px-1.5 py-px text-[10px] font-bold leading-none">
+                          {weekResCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button onClick={() => toggleWeek(week.week)}>
+                      {isExpanded
+                        ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      }
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -397,11 +398,11 @@ export default function RoadmapViewPage() {
                         {/* Day row */}
                         <button
                           onClick={() => toggleDay(dayKey)}
-                          className="w-full flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 hover:bg-white/5 transition-colors text-left"
+                          className="w-full flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3 hover:bg-white/5 transition-colors text-left gap-2"
                         >
                           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                            <span className="text-xs sm:text-sm font-semibold text-purple-300 w-16 sm:w-20 flex-shrink-0 truncate">
-                              {dayData.day.slice(0, 3)}<span className="hidden sm:inline">{dayData.day.slice(3)}</span>
+                            <span className="text-xs sm:text-sm font-semibold text-purple-300 flex-shrink-0">
+                              {dayData.day}
                             </span>
                             <span className="text-xs text-muted-foreground whitespace-nowrap">
                               {dayCompleted}/{dayData.tasks.length}
@@ -426,8 +427,8 @@ export default function RoadmapViewPage() {
                                 <div
                                   key={task.title}
                                   className={`flex items-start gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-xl border transition-all duration-200 ${isCompleted
-                                      ? 'bg-purple-500/10 border-purple-500/20'
-                                      : 'bg-white/3 border-white/5 hover:bg-white/5 hover:border-white/10'
+                                    ? 'bg-purple-500/10 border-purple-500/20'
+                                    : 'bg-white/3 border-white/5 hover:bg-white/5 hover:border-white/10'
                                     }`}
                                 >
                                   {/* Checkbox */}

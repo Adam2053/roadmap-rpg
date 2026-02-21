@@ -1,14 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Zap, LayoutDashboard, Map, LogOut, User } from 'lucide-react'
+import { useRouter, usePathname } from 'next/navigation'
+import { Zap, LayoutDashboard, Map, LogOut, User, Trophy } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
   const router = useRouter()
+  const pathname = usePathname()
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -16,6 +17,28 @@ export default function Navbar() {
     router.push('/login')
     toast.success('Logged out successfully')
   }
+
+  const navLinks = [
+    {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      isActive: pathname === '/dashboard',
+    },
+    {
+      href: '/roadmap',
+      label: 'New Roadmap',
+      icon: Map,
+      isActive: pathname === '/roadmap' || pathname.startsWith('/roadmap/'),
+    },
+    {
+      href: '/leaderboard',
+      label: 'Leaderboard',
+      icon: Trophy,
+      isActive: pathname === '/leaderboard',
+      isSpecial: true,
+    },
+  ]
 
   return (
     <nav className="fixed top-0 w-full z-50 glass border-b border-white/10">
@@ -26,20 +49,36 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Link>
-          <Link
-            href="/roadmap"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all"
-          >
-            <Map className="h-4 w-4" />
-            <span className="hidden sm:inline">New Roadmap</span>
-          </Link>
+          {navLinks.map(({ href, label, icon: Icon, isActive, isSpecial }) => {
+            if (isActive) {
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${isSpecial
+                      ? 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
+                      : 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                    }`}
+                >
+                  <Icon className={`h-4 w-4 ${isSpecial ? 'text-yellow-400' : 'text-purple-400'}`} />
+                  <span className="hidden sm:inline">{label}</span>
+                </Link>
+              )
+            }
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-muted-foreground transition-all ${isSpecial
+                    ? 'hover:text-yellow-400 hover:bg-yellow-500/5'
+                    : 'hover:text-foreground hover:bg-white/5'
+                  }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{label}</span>
+              </Link>
+            )
+          })}
 
           {user && (
             <div className="flex items-center gap-2 ml-2 pl-2 border-l border-white/10">
