@@ -17,6 +17,7 @@ import { RoadmapSkeleton } from '@/components/Skeleton'
 import ResourceModal from '@/components/ResourceModal'
 import DeleteRoadmapModal from '@/components/DeleteRoadmapModal'
 import PublicResourceModal from '@/components/PublicResourceModal'
+import StarButton from '@/components/StarButton'
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface TaskProgressMap { [key: string]: boolean }
@@ -34,6 +35,14 @@ interface RoadmapData {
   weeklyPlan: RoadmapWeek[]
   progress: number
   isPublic: boolean
+  isCustom: boolean
+  starCount: number
+}
+
+interface StarInfo {
+  starred: boolean
+  starCount: number
+  isOwner: boolean
 }
 
 interface ActiveResourceModal {
@@ -74,6 +83,8 @@ export default function RoadmapViewPage() {
   const [isPublic, setIsPublic] = useState(false)
   const [visibilityLoading, setVisibilityLoading] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  // Star state
+  const [starInfo, setStarInfo] = useState<StarInfo | null>(null)
   // Public view extras
   const [publicWeekResourceCounts, setPublicWeekResourceCounts] = useState<WeekResourceCounts>({})
   const [activePublicResourceModal, setActivePublicResourceModal] = useState<{ week: number; focus: string } | null>(null)
@@ -119,6 +130,8 @@ export default function RoadmapViewPage() {
         const data = await res.json()
         setPublicRoadmap(data.roadmap)
         setPublicCreator(data.creator)
+        // Star info bundled in public API response
+        if (data.starInfo) setStarInfo(data.starInfo)
         setLoading(false)
         return
       }
@@ -131,6 +144,21 @@ export default function RoadmapViewPage() {
   }, [id, router, fetchWeekCounts])
 
   useEffect(() => { fetchRoadmap() }, [fetchRoadmap])
+
+  /* ── Fetch star info for owner view of a public roadmap ─── */
+  useEffect(() => {
+    if (!roadmap) return
+    const fetchStars = async () => {
+      try {
+        const res = await fetch(`/api/roadmap/${roadmap._id}/star`)
+        if (res.ok) {
+          const data = await res.json()
+          setStarInfo(data)
+        }
+      } catch { /* non-fatal */ }
+    }
+    fetchStars()
+  }, [roadmap])
 
   /* ── Fetch resource counts for public roadmap view ─────── */
   useEffect(() => {
@@ -170,13 +198,18 @@ export default function RoadmapViewPage() {
         toast.error(json.error || 'Failed to update task')
         return
       }
-      if (json.xpDelta !== 0) {
+      if (json.xpDelta !== 0 || json.customXpDelta !== 0) {
         updateXP(json.xpDelta, task.category, json.newLevel, json.newStreak, json.newTotalXP)
         setRoadmap(prev => prev ? { ...prev, progress: json.roadmapProgress } : prev)
         if (newCompleted) {
-          toast.success(`+${task.xp} XP earned! ${task.category === 'Body' ? '💪' : task.category === 'Skills' ? '🧠' : task.category === 'Mindset' ? '✨' : '🚀'}`)
-          if (json.newLevel > (user?.level || 0)) {
-            toast.success(`🎉 Level Up! You're now Level ${json.newLevel}!`, { duration: 5000 })
+          if (json.isCustomRoadmap) {
+            // Custom roadmap — XP goes to personal pool, not leaderboard
+            toast.success(`+${task.xp} Custom XP earned! 📝 (personal only)`)
+          } else {
+            toast.success(`+${task.xp} XP earned! ${task.category === 'Body' ? '💪' : task.category === 'Skills' ? '🧠' : task.category === 'Mindset' ? '✨' : '🚀'}`)
+            if (json.newLevel > (user?.level || 0)) {
+              toast.success(`🎉 Level Up! You're now Level ${json.newLevel}!`, { duration: 5000 })
+            }
           }
         }
       }
@@ -345,11 +378,18 @@ export default function RoadmapViewPage() {
               <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
                 <Clock className="h-3 w-3" />{publicRoadmap.duration}w
               </span>
+              {publicRoadmap.isCustom && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-semibold border bg-teal-500/15 text-teal-300 border-teal-500/25 whitespace-nowrap">
+                  ✍️ Custom
+                </span>
+              )}
               <span className="ml-auto flex items-center gap-1.5 text-xs bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 rounded-full px-2.5 py-1">
                 <Globe className="h-3.5 w-3.5" />Public Roadmap
               </span>
             </div>
+
             <h1 className="text-xl sm:text-2xl font-black leading-tight">{publicRoadmap.title || publicRoadmap.goal}</h1>
+
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs sm:text-sm">
                 <span className="text-muted-foreground">Overall Progress</span>
@@ -360,6 +400,29 @@ export default function RoadmapViewPage() {
                   style={{ width: `${publicRoadmap.progress}%` }} />
               </div>
               <p className="text-xs text-muted-foreground">{totalPubTasks} tasks across {publicRoadmap.weeklyPlan.length} weeks</p>
+            </div>
+
+            {/* Star action row */}
+            <div className="border-t border-white/6 pt-3 flex items-center gap-3">
+              {starInfo !== null && (
+                <StarButton
+                  roadmapId={publicRoadmap._id}
+                  initialStarred={starInfo.starred}
+                  initialCount={starInfo.starCount}
+                  isOwner={starInfo.isOwner}
+                  isPublic={true}
+                  size="md"
+                  showLabel={true}
+                />
+              )}
+              {!starInfo && (
+                <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 bg-white/5 border border-white/8 text-white/30 text-xs">
+                  ⭐ Loading…
+                </div>
+              )}
+              <span className="text-xs text-white/25">
+                {starInfo?.isOwner ? 'Community stars received' : 'Star this roadmap to help others discover it'}
+              </span>
             </div>
           </div>
         </div>
@@ -506,6 +569,12 @@ export default function RoadmapViewPage() {
                 {roadmap.difficulty === 'easy' ? '🌱 Easy' : roadmap.difficulty === 'medium' ? '⚔️ Medium' : '🔥 Hard'}
               </span>
 
+              {roadmap.isCustom && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-semibold border bg-emerald-500/15 text-emerald-300 border-emerald-500/25 whitespace-nowrap">
+                  ✍️ Custom
+                </span>
+              )}
+
               <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-semibold border whitespace-nowrap ${skillColors[skillLevel]}`}>
                 {skillIcons[skillLevel]}{' '}
                 <span>{skillLevel.charAt(0).toUpperCase() + skillLevel.slice(1)}</span>
@@ -566,7 +635,7 @@ export default function RoadmapViewPage() {
             <p className="text-xs text-muted-foreground">{completedCount}/{totalTasks} tasks completed</p>
           </div>
 
-          {/* Row 4 — Visibility toggle + share link */}
+          {/* Row 4 — Visibility toggle + share link + stars */}
           <div className="border-t border-white/6 pt-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
@@ -586,15 +655,30 @@ export default function RoadmapViewPage() {
                 {isPublic ? 'Public' : 'Private'}
               </button>
 
-              {isPublic && (
-                <button
-                  onClick={copyShareLink}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-all"
-                >
-                  {linkCopied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  {linkCopied ? 'Copied!' : 'Copy share link'}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {/* Star count (owner view — display-only) */}
+                {isPublic && starInfo && (
+                  <StarButton
+                    roadmapId={roadmap._id}
+                    initialStarred={starInfo.starred}
+                    initialCount={starInfo.starCount}
+                    isOwner={true}
+                    isPublic={isPublic}
+                    size="sm"
+                    showLabel={true}
+                  />
+                )}
+
+                {isPublic && (
+                  <button
+                    onClick={copyShareLink}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 transition-all"
+                  >
+                    {linkCopied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {linkCopied ? 'Copied!' : 'Copy share link'}
+                  </button>
+                )}
+              </div>
             </div>
             {isPublic && (
               <p className="mt-2 text-[10px] text-white/25 leading-relaxed">

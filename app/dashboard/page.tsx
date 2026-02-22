@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Zap, Flame, Trophy, Map, Plus, Clock, ChevronRight, Loader2 } from 'lucide-react'
+import { Zap, Flame, Trophy, Map, Plus, Clock, ChevronRight, Loader2, Star, Globe, PenLine, UserCheck, HeartHandshake } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import XPBar from '@/components/XPBar'
 import { DashboardSkeleton } from '@/components/Skeleton'
+import RoadmapTypeModal from '@/components/RoadmapTypeModal'
 
 interface RoadmapSummary {
   _id: string
@@ -15,6 +16,9 @@ interface RoadmapSummary {
   difficulty: string
   duration: number
   progress: number
+  isPublic: boolean
+  isCustom: boolean
+  starCount: number
   createdAt: string
 }
 
@@ -32,6 +36,8 @@ export default function DashboardPage() {
   const { user, isLoading } = useAuthStore()
   const [roadmaps, setRoadmaps] = useState<RoadmapSummary[]>([])
   const [roadmapsLoading, setRoadmapsLoading] = useState(true)
+  const [showTypeModal, setShowTypeModal] = useState(false)
+  const [connCounts, setConnCounts] = useState({ followerCount: 0, closeFriendCount: 0 })
 
   useEffect(() => {
     const fetch_ = async () => {
@@ -46,6 +52,11 @@ export default function DashboardPage() {
       }
     }
     fetch_()
+
+    // Fetch connection counts from settings
+    fetch('/api/settings').then(r => r.ok ? r.json() : null).then(d => {
+      if (d) setConnCounts({ followerCount: d.followerCount || 0, closeFriendCount: d.closeFriendCount || 0 })
+    }).catch(() => { })
   }, [])
 
   if (isLoading) {
@@ -72,7 +83,7 @@ export default function DashboardPage() {
         <div className="relative">
           <p className="text-purple-300 text-sm font-medium mb-1">Welcome back, Hero 👋</p>
           <h1 className="text-3xl font-black mb-1">{user.name}</h1>
-          <div className="flex items-center gap-3 mt-4">
+          <div className="flex flex-wrap items-center gap-3 mt-4">
             <div className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-1.5">
               <Trophy className="h-4 w-4 text-yellow-400" />
               <span className="font-bold text-yellow-300">Level {level}</span>
@@ -85,6 +96,16 @@ export default function DashboardPage() {
               <Zap className="h-4 w-4 text-blue-400" />
               <span className="font-bold text-blue-300">{user.totalXP.toLocaleString()} XP</span>
             </div>
+            <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-4 py-1.5">
+              <UserCheck className="h-4 w-4 text-purple-400" />
+              <span className="font-bold text-purple-300">{connCounts.followerCount}</span>
+              <span className="text-purple-300/60 text-sm">followers</span>
+            </div>
+            <div className="flex items-center gap-2 bg-indigo-500/15 border border-indigo-500/25 rounded-full px-4 py-1.5">
+              <HeartHandshake className="h-4 w-4 text-indigo-400" />
+              <span className="font-bold text-indigo-300">{connCounts.closeFriendCount}</span>
+              <span className="text-indigo-300/60 text-sm">/ 10 friends</span>
+            </div>
           </div>
         </div>
       </div>
@@ -94,8 +115,8 @@ export default function DashboardPage() {
         {[
           { label: 'Total XP', value: user.totalXP.toLocaleString(), icon: Zap, color: 'text-purple-400', bg: 'bg-purple-500/10' },
           { label: 'Current Level', value: level.toString(), icon: Trophy, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-          { label: 'Day Streak', value: `${user.streak} 🔥`, icon: Flame, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-          { label: 'Roadmaps', value: roadmaps.length.toString(), icon: Map, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Mentor Followers', value: connCounts.followerCount.toString(), icon: UserCheck, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+          { label: `Close Friends`, value: `${connCounts.closeFriendCount} / 10`, icon: HeartHandshake, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
         ].map(stat => (
           <div key={stat.label} className="glass rounded-2xl p-5">
             <div className={`${stat.bg} w-10 h-10 rounded-xl flex items-center justify-center mb-3`}>
@@ -151,13 +172,13 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-bold text-xl">Your Roadmaps</h2>
-          <Link
-            href="/roadmap"
+          <button
+            onClick={() => setShowTypeModal(true)}
             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
           >
             <Plus className="h-4 w-4" />
             New Roadmap
-          </Link>
+          </button>
         </div>
 
         {roadmapsLoading ? (
@@ -168,14 +189,14 @@ export default function DashboardPage() {
           <div className="glass rounded-2xl p-12 text-center">
             <Map className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="font-bold text-lg mb-2">No roadmaps yet</h3>
-            <p className="text-muted-foreground mb-6">Create your first AI-powered roadmap to begin leveling up.</p>
-            <Link
-              href="/roadmap"
+            <p className="text-muted-foreground mb-6">Create your first roadmap to begin leveling up.</p>
+            <button
+              onClick={() => setShowTypeModal(true)}
               className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-xl font-medium transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Generate First Roadmap
-            </Link>
+              Create First Roadmap
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -183,10 +204,22 @@ export default function DashboardPage() {
               <Link
                 key={rm._id}
                 href={`/roadmap/${rm._id}`}
-                className="glass rounded-2xl p-5 hover:bg-white/10 transition-all duration-300 group overflow-hidden w-full"
+                className="glass rounded-2xl p-5 hover:bg-white/10 transition-all duration-300 group overflow-hidden w-full block"
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      {rm.isPublic && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-400/80 font-medium">
+                          <Globe className="h-3 w-3" /> Public
+                        </span>
+                      )}
+                      {rm.isCustom && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-teal-400/80 font-medium">
+                          <PenLine className="h-3 w-3" /> Custom
+                        </span>
+                      )}
+                    </div>
                     <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-purple-300 transition-colors break-words">
                       {rm.title || rm.goal}
                     </h3>
@@ -201,6 +234,12 @@ export default function DashboardPage() {
                         <Clock className="h-3 w-3 flex-shrink-0" />
                         {rm.duration}w
                       </span>
+                      {rm.isPublic && (
+                        <span className="flex items-center gap-1 text-xs text-yellow-400/80 whitespace-nowrap">
+                          <Star className="h-3 w-3 fill-yellow-400/60 text-yellow-400/60" />
+                          {rm.starCount || 0}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-purple-400 transition-colors flex-shrink-0" />
@@ -222,6 +261,8 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {showTypeModal && <RoadmapTypeModal onClose={() => setShowTypeModal(false)} />}
     </div>
   )
 }

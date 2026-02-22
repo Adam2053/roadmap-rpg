@@ -25,7 +25,7 @@ export async function GET(
         await connectDB()
 
         const user = await User.findById(userId)
-            .select('name totalXP level bodyXP skillsXP mindsetXP careerXP streak isProfilePublic createdAt')
+            .select('name totalXP level bodyXP skillsXP mindsetXP careerXP streak isProfilePublic allowCloseFriendRequests createdAt')
             .lean() as {
                 _id: unknown
                 name: string
@@ -37,6 +37,7 @@ export async function GET(
                 careerXP: number
                 streak: number
                 isProfilePublic: boolean
+                allowCloseFriendRequests: boolean
                 createdAt: Date
             } | null
 
@@ -47,16 +48,22 @@ export async function GET(
         const isOwner = userId === authUser.userId
         const isPublic = user.isProfilePublic ?? false
 
-        // Private profile — only let the owner see full data
+        // Private profile — show limited identity info + allow close friend requests
+        // (detailed stats and roadmaps remain hidden)
         if (!isPublic && !isOwner) {
             return NextResponse.json({
                 isPrivate: true,
-                profile: { name: user.name },
+                profile: {
+                    name: user.name,
+                    totalXP: user.totalXP,
+                    level: user.level,
+                    allowCloseFriendRequests: user.allowCloseFriendRequests ?? true,
+                },
             })
         }
 
         const publicRoadmaps = await Roadmap.find({ userId, isPublic: true })
-            .select('_id title goal difficulty duration progress skillLevel createdAt')
+            .select('_id title goal difficulty duration progress skillLevel starCount isCustom createdAt')
             .sort({ createdAt: -1 })
             .limit(20)
             .lean()

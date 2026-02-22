@@ -4,8 +4,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     X, Trophy, Zap, Flame, Map, Clock, Globe,
-    Lock, Loader2, TrendingUp, Calendar, ExternalLink, User
+    Lock, Loader2, TrendingUp, Calendar, ExternalLink, User,
+    Star, PenLine, UserPlus, UserCheck, UserX, Users,
+    Heart, HeartHandshake, HeartOff, Sparkles
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface PublicRoadmap {
     _id: string
@@ -15,6 +18,8 @@ interface PublicRoadmap {
     duration: number
     progress: number
     skillLevel: string
+    starCount: number
+    isCustom: boolean
     createdAt: string
 }
 
@@ -30,6 +35,16 @@ interface UserProfile {
     streak: number
     memberSince: string
     isMe: boolean
+}
+
+interface ConnectionStatus {
+    isMe: boolean
+    following: boolean
+    followerCount: number
+    friendStatus: 'none' | 'pending_sent' | 'pending_received' | 'accepted'
+    closeFriendCount: number
+    allowCloseFriendRequests: boolean
+    myCloseFriendCount: number
 }
 
 interface Props {
@@ -71,6 +86,10 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
+    // Connection state
+    const [connStatus, setConnStatus] = useState<ConnectionStatus | null>(null)
+    const [connLoading, setConnLoading] = useState(false)
+
     const fetchProfile = useCallback(async () => {
         try {
             const res = await fetch(`/api/profile/${userId}`)
@@ -82,6 +101,8 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
             const data = await res.json()
             if (data.isPrivate) {
                 setIsPrivate(true)
+                // data.profile includes name, totalXP, level, allowCloseFriendRequests
+                setProfile(data.profile as UserProfile)
             } else {
                 setProfile(data.profile)
                 setRoadmaps(data.publicRoadmaps || [])
@@ -93,7 +114,15 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
         }
     }, [userId])
 
+    const fetchConnStatus = useCallback(async () => {
+        try {
+            const res = await fetch(`/api/connections/status/${userId}`)
+            if (res.ok) setConnStatus(await res.json())
+        } catch { /* non-fatal */ }
+    }, [userId])
+
     useEffect(() => { fetchProfile() }, [fetchProfile])
+    useEffect(() => { fetchConnStatus() }, [fetchConnStatus])
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -101,19 +130,182 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
         return () => document.removeEventListener('keydown', handler)
     }, [onClose])
 
-    const viewFullProfile = () => {
-        onClose()
-        router.push(`/profile/${userId}`)
+    const viewFullProfile = () => { onClose(); router.push(`/profile/${userId}`) }
+    const openRoadmap = (roadmapId: string) => { onClose(); router.push(`/roadmap/${roadmapId}`) }
+
+    /* ── Connection actions ────────────────────────────────── */
+    const toggleFollow = async () => {
+        if (!connStatus || connLoading) return
+        setConnLoading(true)
+        const prev = connStatus
+        // Optimistic update
+        setConnStatus(s => s ? {
+            ...s,
+            following: !s.following,
+            followerCount: s.following ? Math.max(0, s.followerCount - 1) : s.followerCount + 1,
+        } : s)
+        try {
+            const res = await fetch('/api/connections/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: userId }),
+            })
+            if (!res.ok) {
+                setConnStatus(prev)
+                toast.error((await res.json()).error || 'Failed')
+            } else {
+                const data = await res.json()
+                setConnStatus(s => s ? { ...s, following: data.following, followerCount: data.followerCount } : s)
+                toast.success(data.following ? `Now following ${entryName} as mentor` : `Unfollowed ${entryName}`)
+            }
+        } catch {
+            setConnStatus(prev)
+            toast.error('Network error')
+        } finally {
+            setConnLoading(false)
+        }
     }
 
-    const openRoadmap = (roadmapId: string) => {
-        onClose()
-        router.push(`/roadmap/${roadmapId}`)
+    const sendFriendRequest = async () => {
+        if (!connStatus || connLoading) return
+        setConnLoading(true)
+        try {
+            const res = await fetch('/api/connections/friend/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: userId }),
+            })
+            const json = await res.json()
+            if (!res.ok) { toast.error(json.error || 'Failed'); return }
+            setConnStatus(s => s ? { ...s, friendStatus: 'pending_sent' } : s)
+            toast.success(`Close friend request sent to ${entryName}! 🤝`)
+        } catch {
+            toast.error('Network error')
+        } finally {
+            setConnLoading(false)
+        }
+    }
+
+    const cancelRequest = async () => {
+        if (!connStatus || connLoading) return
+        setConnLoading(true)
+        try {
+            const res = await fetch(`/api/connections/friend/${userId}`, { method: 'DELETE' })
+            if (!res.ok) { toast.error((await res.json()).error || 'Failed'); return }
+            setConnStatus(s => s ? { ...s, friendStatus: 'none' } : s)
+            toast.success('Request cancelled')
+        } catch {
+            toast.error('Network error')
+        } finally {
+            setConnLoading(false)
+        }
+    }
+
+    const unfriend = async () => {
+        if (!connStatus || connLoading) return
+        setConnLoading(true)
+        try {
+            const res = await fetch(`/api/connections/friend/${userId}`, { method: 'DELETE' })
+            if (!res.ok) { toast.error((await res.json()).error || 'Failed'); return }
+            setConnStatus(s => s ? {
+                ...s,
+                friendStatus: 'none',
+                closeFriendCount: Math.max(0, s.closeFriendCount - 1),
+                myCloseFriendCount: Math.max(0, s.myCloseFriendCount - 1),
+            } : s)
+            toast.success(`Removed ${entryName} from close friends`)
+        } catch {
+            toast.error('Network error')
+        } finally {
+            setConnLoading(false)
+        }
     }
 
     const maxCategoryXP = profile
         ? Math.max(1, profile.bodyXP, profile.skillsXP, profile.mindsetXP, profile.careerXP)
         : 1
+
+    /* ── Friend button logic ───────────────────────────────── */
+    const renderFriendButton = () => {
+        if (!connStatus) return null
+        const { friendStatus, allowCloseFriendRequests, myCloseFriendCount, closeFriendCount } = connStatus
+
+        if (friendStatus === 'accepted') {
+            return (
+                <button
+                    onClick={unfriend}
+                    disabled={connLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-500/35 bg-indigo-500/15 text-indigo-300 hover:bg-red-500/15 hover:border-red-500/35 hover:text-red-300 transition-all"
+                    title="Remove close friend"
+                >
+                    <HeartHandshake className="h-3.5 w-3.5" />
+                    Close Friend
+                </button>
+            )
+        }
+
+        if (friendStatus === 'pending_sent') {
+            return (
+                <button
+                    onClick={cancelRequest}
+                    disabled={connLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/15 bg-white/5 text-white/40 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/25 transition-all"
+                    title="Cancel request"
+                >
+                    <HeartOff className="h-3.5 w-3.5" />
+                    Pending…
+                </button>
+            )
+        }
+
+        if (friendStatus === 'pending_received') {
+            return (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-yellow-500/25 bg-yellow-500/10 text-yellow-300">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Wants to connect
+                </span>
+            )
+        }
+
+        // friendStatus === 'none' — show Add button (with guards)
+        if (!allowCloseFriendRequests) {
+            return (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-white/8 bg-white/3 text-white/25 cursor-not-allowed" title="Not accepting close friend requests">
+                    <UserX className="h-3.5 w-3.5" />
+                    Requests off
+                </span>
+            )
+        }
+
+        if (myCloseFriendCount >= 10) {
+            return (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-white/8 bg-white/3 text-white/25 cursor-not-allowed" title="You've reached 10 close friends">
+                    <Users className="h-3.5 w-3.5" />
+                    Your limit reached
+                </span>
+            )
+        }
+
+        if (closeFriendCount >= 10) {
+            return (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-white/8 bg-white/3 text-white/25 cursor-not-allowed" title="This user has reached their limit">
+                    <Users className="h-3.5 w-3.5" />
+                    Their limit full
+                </span>
+            )
+        }
+
+        return (
+            <button
+                onClick={sendFriendRequest}
+                disabled={connLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-500/25 bg-indigo-500/8 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all"
+            >
+                <Heart className="h-3.5 w-3.5" />
+                Add Close Friend
+            </button>
+        )
+    }
 
     return (
         <div
@@ -140,18 +332,81 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
                         <div className="text-4xl">😶</div>
                         <p className="text-sm text-muted-foreground text-center">{error}</p>
                     </div>
-                ) : isPrivate ? (
-                    <div className="flex flex-col items-center justify-center gap-4 py-20 px-6 text-center">
-                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                            <Lock className="h-7 w-7 text-white/25" />
+                ) : isPrivate && profile ? (
+                    /* ── Private profile: show identity + friend request only ── */
+                    <div>
+                        {/* Muted hero */}
+                        <div className="relative overflow-hidden rounded-t-3xl bg-gradient-to-br from-slate-900/80 via-slate-800/60 to-slate-900/60 p-6 pb-5">
+                            <div className="absolute inset-0 bg-gradient-to-r from-white/3 to-white/1 pointer-events-none" />
+                            <div className="relative flex items-start gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-white/8 border border-white/15 flex items-center justify-center flex-shrink-0 text-2xl font-black text-white/40">
+                                    {profile.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-xl font-black text-white/85 leading-tight pr-8">{profile.name}</h2>
+                                        <span className="flex items-center gap-1 text-xs text-white/30 bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5">
+                                            <Lock className="h-3 w-3" /> Private
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                                        <div className="flex items-center gap-1.5 bg-yellow-500/12 border border-yellow-500/20 rounded-full px-2.5 py-1">
+                                            <Trophy className="h-3.5 w-3.5 text-yellow-400/70" />
+                                            <span className="text-xs font-bold text-yellow-300/70">Level {profile.level}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
+                                            <Zap className="h-3.5 w-3.5 text-white/30" />
+                                            <span className="text-xs font-semibold text-white/40">{profile.totalXP?.toLocaleString()} XP</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Close friend action */}
+                                    {connStatus && !connStatus.isMe && (
+                                        <div className="mt-4">
+                                            {connStatus.friendStatus === 'accepted' ? (
+                                                <button onClick={unfriend} disabled={connLoading}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-500/35 bg-indigo-500/15 text-indigo-300 hover:bg-red-500/15 hover:border-red-500/35 hover:text-red-300 transition-all">
+                                                    <HeartHandshake className="h-3.5 w-3.5" /> Close Friend
+                                                </button>
+                                            ) : connStatus.friendStatus === 'pending_sent' ? (
+                                                <button onClick={cancelRequest} disabled={connLoading}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/15 bg-white/5 text-white/40 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/25 transition-all">
+                                                    <HeartOff className="h-3.5 w-3.5" /> Pending…
+                                                </button>
+                                            ) : connStatus.friendStatus === 'pending_received' ? (
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-yellow-500/25 bg-yellow-500/10 text-yellow-300">
+                                                    <Sparkles className="h-3.5 w-3.5" /> Wants to connect
+                                                </span>
+                                            ) : !(connStatus.allowCloseFriendRequests ?? true) ? (
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-white/8 bg-white/3 text-white/25 cursor-not-allowed">
+                                                    <UserX className="h-3.5 w-3.5" /> Requests off
+                                                </span>
+                                            ) : connStatus.myCloseFriendCount >= 10 ? (
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-white/8 bg-white/3 text-white/25 cursor-not-allowed">
+                                                    <Users className="h-3.5 w-3.5" /> Your limit reached
+                                                </span>
+                                            ) : connStatus.closeFriendCount >= 10 ? (
+                                                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-white/8 bg-white/3 text-white/25 cursor-not-allowed">
+                                                    <Users className="h-3.5 w-3.5" /> Their limit full
+                                                </span>
+                                            ) : (
+                                                <button onClick={sendFriendRequest} disabled={connLoading}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-500/25 bg-indigo-500/8 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all">
+                                                    <Heart className="h-3.5 w-3.5" /> Add Close Friend
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold">{entryName}</h3>
-                            <p className="text-sm text-white/40 mt-1">This profile is private</p>
+
+                        {/* Hint footer */}
+                        <div className="px-5 py-4 text-center">
+                            <p className="text-xs text-white/20 leading-relaxed">
+                                This adventurer keeps their journey private. Stats and roadmaps are hidden.
+                            </p>
                         </div>
-                        <p className="text-xs text-white/25 max-w-xs">
-                            This adventurer keeps their journey private. You can still see their rank on the leaderboard.
-                        </p>
                     </div>
                 ) : profile ? (
                     <div>
@@ -194,6 +449,44 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
                                     <span>all categories</span>
                                 </div>
                             </div>
+
+                            {/* Connection stats */}
+                            {connStatus && (
+                                <div className="relative mt-3 flex items-center gap-3 text-xs text-white/35">
+                                    <span className="flex items-center gap-1">
+                                        <UserCheck className="h-3 w-3 text-purple-400/60" />
+                                        <span className="font-semibold text-purple-300/80">{connStatus.followerCount}</span> followers
+                                    </span>
+                                    <span className="text-white/15">·</span>
+                                    <span className="flex items-center gap-1">
+                                        <HeartHandshake className="h-3 w-3 text-indigo-400/60" />
+                                        <span className="font-semibold text-indigo-300/80">{connStatus.closeFriendCount}</span> close friends
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Connection action buttons */}
+                            {connStatus && !connStatus.isMe && (
+                                <div className="relative mt-3 flex items-center gap-2 flex-wrap">
+                                    {/* Follow / Unfollow mentor */}
+                                    <button
+                                        onClick={toggleFollow}
+                                        disabled={connLoading}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${connStatus.following
+                                            ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 hover:bg-red-500/15 hover:border-red-500/35 hover:text-red-300'
+                                            : 'bg-white/5 border-white/10 text-white/50 hover:bg-purple-500/15 hover:border-purple-500/30 hover:text-purple-300'
+                                            }`}
+                                    >
+                                        {connStatus.following
+                                            ? <><UserX className="h-3.5 w-3.5" /> Following</>
+                                            : <><UserPlus className="h-3.5 w-3.5" /> Follow as Mentor</>
+                                        }
+                                    </button>
+
+                                    {/* Close friend button */}
+                                    {renderFriendButton()}
+                                </div>
+                            )}
 
                             {/* View Full Profile Button */}
                             <button
@@ -259,6 +552,16 @@ export default function UserProfileModal({ userId, entryName, onClose }: Props) 
                                                         <Clock className="h-2.5 w-2.5" />{rm.duration}w
                                                     </span>
                                                     <span className="text-[10px] text-purple-300 font-medium">{rm.progress}% done</span>
+                                                    {rm.isCustom && (
+                                                        <span className="text-[10px] text-teal-400/80 flex items-center gap-0.5">
+                                                            <PenLine className="h-2.5 w-2.5" />Custom
+                                                        </span>
+                                                    )}
+                                                    {(rm.starCount || 0) > 0 && (
+                                                        <span className="text-[10px] text-yellow-400/80 flex items-center gap-0.5">
+                                                            <Star className="h-2.5 w-2.5 fill-yellow-400/60" />{rm.starCount}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="mt-1.5 h-1 bg-white/5 rounded-full overflow-hidden">
                                                     <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"

@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     await connectDB()
 
     const roadmaps = await Roadmap.find({ userId: authUser.userId })
-      .select('-weeklyPlan')
+      .select('_id goal title skillLevel difficulty duration progress isPublic isCustom starCount createdAt')
       .sort({ createdAt: -1 })
       .limit(20)
 

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     User, Globe, Lock, Copy, Check, Loader2,
-    ArrowLeft, Zap, Trophy, Flame, Calendar, Shield, Pencil, LogOut
+    ArrowLeft, Zap, Trophy, Flame, Calendar, Shield, Pencil, LogOut, Users, UserCheck,
+    Heart, HeartOff, Bell
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/authStore'
@@ -14,6 +15,9 @@ interface Settings {
     name: string
     email: string
     isProfilePublic: boolean
+    allowCloseFriendRequests: boolean
+    followerCount: number
+    closeFriendCount: number
     totalXP: number
     level: number
     streak: number
@@ -38,6 +42,11 @@ export default function SettingsPage() {
     const [editingName, setEditingName] = useState(false)
     const [nameInput, setNameInput] = useState('')
 
+    // Pending friend requests
+    interface PendingRequest { requestId: string; senderId: string; senderName: string; senderLevel: number; senderXP: number; sentAt: string }
+    const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([])
+    const [respondingTo, setRespondingTo] = useState<string | null>(null)
+
     const fetchSettings = useCallback(async () => {
         try {
             const res = await fetch('/api/settings')
@@ -52,9 +61,20 @@ export default function SettingsPage() {
         }
     }, [router])
 
-    useEffect(() => { fetchSettings() }, [fetchSettings])
+    const fetchPendingRequests = useCallback(async () => {
+        try {
+            const res = await fetch('/api/connections/requests')
+            if (res.ok) {
+                const data = await res.json()
+                setPendingRequests(data.requests || [])
+            }
+        } catch { /* non-fatal */ }
+    }, [])
 
-    const patchSettings = async (updates: Partial<{ isProfilePublic: boolean; name: string }>) => {
+    useEffect(() => { fetchSettings() }, [fetchSettings])
+    useEffect(() => { fetchPendingRequests() }, [fetchPendingRequests])
+
+    const patchSettings = async (updates: Partial<{ isProfilePublic: boolean; name: string; allowCloseFriendRequests: boolean }>) => {
         setSaving(true)
         try {
             const res = await fetch('/api/settings', {
@@ -71,6 +91,30 @@ export default function SettingsPage() {
         } finally {
             setSaving(false)
             setEditingName(false)
+        }
+    }
+
+    const respondToRequest = async (requestId: string, action: 'accept' | 'decline') => {
+        setRespondingTo(requestId)
+        try {
+            const res = await fetch('/api/connections/friend/respond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId, action }),
+            })
+            if (!res.ok) { toast.error((await res.json()).error || 'Failed'); return }
+            setPendingRequests(prev => prev.filter(r => r.requestId !== requestId))
+            if (action === 'accept') {
+                toast.success('🤝 Close friend added!')
+                // Refresh settings to update closeFriendCount
+                fetchSettings()
+            } else {
+                toast.success('Request declined')
+            }
+        } catch {
+            toast.error('Network error')
+        } finally {
+            setRespondingTo(null)
         }
     }
 
@@ -271,10 +315,96 @@ export default function SettingsPage() {
                     </button>
                 </div>
 
+                {/* Allow close friend requests */}
+                <div className="flex items-center justify-between gap-4 p-4 bg-white/3 border border-white/8 rounded-xl">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <UserCheck className="h-4 w-4 text-indigo-400" />
+                            <p className="font-medium text-sm">Allow Close Friend Requests</p>
+                        </div>
+                        <p className="text-xs text-white/30 mt-0.5">
+                            {settings.allowCloseFriendRequests
+                                ? 'Anyone can send you a close friend request.'
+                                : 'No one can send you close friend requests. Existing friendships are unaffected.'}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => patchSettings({ allowCloseFriendRequests: !settings.allowCloseFriendRequests })}
+                        disabled={saving}
+                        className={`relative flex-shrink-0 w-12 h-6 rounded-full border transition-all duration-300 disabled:opacity-50 ${settings.allowCloseFriendRequests ? 'bg-indigo-500 border-indigo-400' : 'bg-white/10 border-white/20'}`}
+                    >
+                        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300 ${settings.allowCloseFriendRequests ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                </div>
+
                 <p className="text-xs text-white/20 leading-relaxed px-1">
                     Roadmap visibility is managed individually per-roadmap from the roadmap detail page. Private roadmaps are never shown on your profile or shared via links.
                 </p>
             </div>
+
+            {/* ── Connections ── */}
+            <div className="glass rounded-2xl p-5 sm:p-6 space-y-4">
+                <h2 className="font-bold text-sm text-white/50 uppercase tracking-widest flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Connections
+                </h2>
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1 p-4 bg-white/3 border border-white/8 rounded-xl text-center">
+                        <span className="text-2xl font-black text-purple-300">{settings.followerCount}</span>
+                        <span className="text-xs text-white/35">Mentor followers</span>
+                        <span className="text-[10px] text-white/20 mt-0.5">People who follow you as a mentor</span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-4 bg-white/3 border border-white/8 rounded-xl text-center">
+                        <span className="text-2xl font-black text-indigo-300">{settings.closeFriendCount}<span className="text-sm text-white/30">/10</span></span>
+                        <span className="text-xs text-white/35">Close friends</span>
+                        <span className="text-[10px] text-white/20 mt-0.5">Mutual connections you've accepted</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Pending Friend Requests ── */}
+            {pendingRequests.length > 0 && (
+                <div className="glass rounded-2xl p-5 sm:p-6 space-y-4">
+                    <h2 className="font-bold text-sm text-white/50 uppercase tracking-widest flex items-center gap-2">
+                        <Bell className="h-4 w-4 text-indigo-400" />
+                        Close Friend Requests
+                        <span className="ml-auto text-xs font-bold text-indigo-300 bg-indigo-500/20 border border-indigo-500/30 rounded-full px-2 py-0.5">
+                            {pendingRequests.length}
+                        </span>
+                    </h2>
+                    <div className="space-y-2">
+                        {pendingRequests.map(req => (
+                            <div key={req.requestId} className="flex items-center gap-3 p-3 bg-white/3 border border-indigo-500/15 rounded-xl">
+                                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-500/25 flex items-center justify-center text-sm font-black text-indigo-200 flex-shrink-0">
+                                    {req.senderName.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-white/85 leading-tight truncate">{req.senderName}</p>
+                                    <p className="text-xs text-white/35">Lv.{req.senderLevel} · {req.senderXP.toLocaleString()} XP</p>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <button
+                                        onClick={() => respondToRequest(req.requestId, 'accept')}
+                                        disabled={respondingTo === req.requestId}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 transition-all disabled:opacity-50"
+                                    >
+                                        {respondingTo === req.requestId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Heart className="h-3 w-3" />}
+                                        Accept
+                                    </button>
+                                    <button
+                                        onClick={() => respondToRequest(req.requestId, 'decline')}
+                                        disabled={respondingTo === req.requestId}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 bg-white/5 text-white/40 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/25 transition-all disabled:opacity-50"
+                                    >
+                                        <HeartOff className="h-3 w-3" />
+                                        Decline
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* ── Sign Out ── */}
             <div className="glass rounded-2xl p-5 sm:p-6">

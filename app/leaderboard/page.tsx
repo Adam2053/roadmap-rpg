@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
     Trophy, Zap, Flame, ArrowLeft, RefreshCw, Crown,
-    TrendingUp, Users, Medal, Loader2, Star, User
+    TrendingUp, Users, Medal, Loader2, Star, User, HeartHandshake, UserCheck
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
@@ -23,6 +23,9 @@ interface LeaderboardEntry {
     streak: number
     isMe: boolean
 }
+
+// Map of userId → connection tags
+interface ConnectionTags { [userId: string]: { isFriend: boolean; isFollowing: boolean } }
 
 const CATEGORY_COLORS = {
     body: { bg: 'bg-rose-500', text: 'text-rose-300', label: '💪 Body' },
@@ -65,6 +68,7 @@ export default function LeaderboardPage() {
     const [refreshing, setRefreshing] = useState(false)
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
     const [selectedUser, setSelectedUser] = useState<{ userId: string; name: string } | null>(null)
+    const [connectionTags, setConnectionTags] = useState<ConnectionTags>({})
 
     const fetchLeaderboard = useCallback(async (silent = false) => {
         if (!silent) setLoading(true)
@@ -91,6 +95,26 @@ export default function LeaderboardPage() {
         const interval = setInterval(() => fetchLeaderboard(true), 30_000)
         return () => clearInterval(interval)
     }, [fetchLeaderboard])
+
+    // After entries load, batch-fetch connection tags
+    useEffect(() => {
+        if (entries.length === 0) return
+        const others = entries.filter(e => !e.isMe)
+        const tags: ConnectionTags = {}
+        Promise.all(
+            others.map(e =>
+                fetch(`/api/connections/status/${e.userId}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (data) tags[e.userId] = {
+                            isFriend: data.friendStatus === 'accepted',
+                            isFollowing: data.following,
+                        }
+                    })
+                    .catch(() => { })
+            )
+        ).then(() => setConnectionTags({ ...tags }))
+    }, [entries])
 
     const topEntry = entries[0]
 
@@ -190,7 +214,17 @@ export default function LeaderboardPage() {
                                                         YOU
                                                     </span>
                                                 )}
-                                                {!entry.isMe && (
+                                                {!entry.isMe && connectionTags[entry.userId]?.isFriend && (
+                                                    <span className="text-[10px] font-bold bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-full px-2 py-0.5 flex-shrink-0 flex items-center gap-1">
+                                                        <HeartHandshake className="h-2.5 w-2.5" />Friend
+                                                    </span>
+                                                )}
+                                                {!entry.isMe && connectionTags[entry.userId]?.isFollowing && (
+                                                    <span className="text-[10px] font-bold bg-purple-500/15 border border-purple-500/25 text-purple-300/80 rounded-full px-2 py-0.5 flex-shrink-0 flex items-center gap-1">
+                                                        <UserCheck className="h-2.5 w-2.5" />Mentor
+                                                    </span>
+                                                )}
+                                                {!entry.isMe && !connectionTags[entry.userId]?.isFriend && !connectionTags[entry.userId]?.isFollowing && (
                                                     <span className="text-[10px] font-medium bg-white/5 border border-white/8 text-white/30 rounded-full px-2 py-0.5 flex-shrink-0 flex items-center gap-1">
                                                         <User className="h-2.5 w-2.5" />
                                                         View

@@ -19,12 +19,15 @@ export async function GET(req: NextRequest) {
 
         await connectDB()
         const user = await User.findById(authUser.userId)
-            .select('name email isProfilePublic totalXP level streak createdAt')
+            .select('name email isProfilePublic totalXP level streak createdAt allowCloseFriendRequests followerCount closeFriendCount')
             .lean() as {
                 _id: unknown
                 name: string
                 email: string
                 isProfilePublic: boolean
+                allowCloseFriendRequests: boolean
+                followerCount: number
+                closeFriendCount: number
                 totalXP: number
                 level: number
                 streak: number
@@ -38,6 +41,9 @@ export async function GET(req: NextRequest) {
             name: user.name,
             email: user.email,
             isProfilePublic: user.isProfilePublic ?? false,
+            allowCloseFriendRequests: user.allowCloseFriendRequests ?? true,
+            followerCount: user.followerCount || 0,
+            closeFriendCount: user.closeFriendCount || 0,
             totalXP: user.totalXP,
             level: user.level,
             streak: user.streak,
@@ -63,6 +69,9 @@ export async function PATCH(req: NextRequest) {
         if (typeof body.name === 'string' && body.name.trim().length >= 1) {
             updates.name = body.name.trim().substring(0, 100)
         }
+        if (typeof body.allowCloseFriendRequests === 'boolean') {
+            updates.allowCloseFriendRequests = body.allowCloseFriendRequests
+        }
 
         if (Object.keys(updates).length === 0) {
             return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
@@ -73,8 +82,8 @@ export async function PATCH(req: NextRequest) {
             authUser.userId,
             { $set: updates },
             { new: true, strict: false }
-        ).select('name email isProfilePublic').lean() as {
-            name: string; email: string; isProfilePublic: boolean
+        ).select('name email isProfilePublic allowCloseFriendRequests').lean() as {
+            name: string; email: string; isProfilePublic: boolean; allowCloseFriendRequests: boolean
         } | null
 
         if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -84,6 +93,7 @@ export async function PATCH(req: NextRequest) {
             name: user.name,
             email: user.email,
             isProfilePublic: user.isProfilePublic ?? false,
+            allowCloseFriendRequests: user.allowCloseFriendRequests ?? true,
         })
     } catch (error) {
         console.error('Settings PATCH error:', error)

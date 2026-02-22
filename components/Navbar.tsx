@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import {
   Zap, LayoutDashboard, Map, LogOut, User,
-  Trophy, Settings, Search, Loader2, X, Lock
+  Trophy, Settings, Search, Loader2, X, Lock, Bell
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
@@ -67,6 +67,7 @@ export default function Navbar() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [pendingRequests, setPendingRequests] = useState(0)
 
   // Single stable ref for the desktop search wrapper
   const desktopSearchRef = useRef<HTMLDivElement>(null)
@@ -84,6 +85,23 @@ export default function Navbar() {
     router.push('/login')
     toast.success('Logged out successfully')
   }
+
+  // Poll for pending friend requests every 30s
+  useEffect(() => {
+    if (!user) return
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/connections/requests')
+        if (res.ok) {
+          const data = await res.json()
+          setPendingRequests(data.count || 0)
+        }
+      } catch { /* silent */ }
+    }
+    poll()
+    const interval = setInterval(poll, 30_000)
+    return () => clearInterval(interval)
+  }, [user])
 
   // Close search when clicking/tapping outside ALL search areas
   useEffect(() => {
@@ -179,21 +197,24 @@ export default function Navbar() {
                 <Zap className="h-3.5 w-3.5 text-yellow-500/50 group-hover:text-yellow-400 flex-shrink-0 transition-colors" />
               </Link>
             ) : (
-              /* Private profile — show toast, no navigation */
-              <button
+              /* Private profile — navigate to limited profile view */
+              <Link
                 key={r.userId}
-                onClick={() => toast.info(`🔒 ${r.name}'s profile is private`)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/4 transition-colors text-left group cursor-default"
+                href={`/profile/${r.userId}`}
+                onClick={closeSearch}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-white/4 transition-colors text-left group"
               >
                 <div className="w-9 h-9 rounded-xl bg-white/8 border border-white/10 flex items-center justify-center text-sm font-black text-white/30 flex-shrink-0">
                   {r.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white/40 truncate">{r.name}</p>
-                  <p className="text-xs text-white/25">Private profile</p>
+                  <p className="text-sm font-semibold text-white/45 truncate group-hover:text-white/60 transition-colors">{r.name}</p>
+                  <p className="text-xs text-white/25 flex items-center gap-1">
+                    <Lock className="h-2.5 w-2.5" /> Private profile
+                  </p>
                 </div>
-                <Lock className="h-3.5 w-3.5 text-white/20 flex-shrink-0" />
-              </button>
+                <Lock className="h-3.5 w-3.5 text-white/20 group-hover:text-white/35 flex-shrink-0 transition-colors" />
+              </Link>
             )
           ))}
         </div>
@@ -293,14 +314,21 @@ export default function Navbar() {
                 )}
               </div>
 
-              {/* User chip */}
+              {/* User chip with notification dot */}
               <div
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
+                className="relative flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer"
                 style={{ background: 'rgba(139,92,246,0.08)', borderColor: 'rgba(139,92,246,0.18)' }}
+                onClick={() => router.push('/settings')}
+                title="Settings"
               >
                 <User className="h-3.5 w-3.5 text-purple-400" />
                 <span className="text-sm font-bold text-purple-300">Lv.{user.level}</span>
                 <span className="text-xs text-white/40">{user.name.split(' ')[0]}</span>
+                {pendingRequests > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-500 border-2 border-[#0a0a14] text-[10px] font-black text-white">
+                    {pendingRequests > 9 ? '9+' : pendingRequests}
+                  </span>
+                )}
               </div>
 
               {/* Logout */}
@@ -334,9 +362,18 @@ export default function Navbar() {
 
         {user && (
           <div className="flex items-center gap-1.5" ref={mobileToggleRef}>
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.22)' }}>
+            <div
+              className="relative flex items-center gap-1 px-2 py-1 rounded-lg cursor-pointer"
+              style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.22)' }}
+              onClick={() => router.push('/settings')}
+            >
               <Zap className="h-3 w-3 text-yellow-400" />
               <span className="text-xs font-bold text-purple-300">Lv.{user.level}</span>
+              {pendingRequests > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-indigo-500 border-2 border-[#0a0a14] flex items-center justify-center text-[9px] font-black text-white">
+                  {pendingRequests > 9 ? '9+' : pendingRequests}
+                </span>
+              )}
             </div>
             <button
               onClick={() => searchOpen ? setSearchOpen(false) : openSearch()}

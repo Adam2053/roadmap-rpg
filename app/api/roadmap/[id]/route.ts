@@ -155,6 +155,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 })
     }
 
+    const isCustomRoadmap = roadmap.isCustom === true
+
     // ── 1. Aggregate earned XP by category ───────────────────────────────
     const completedProgress = await TaskProgress.find({
       userId: authUser.userId,
@@ -182,12 +184,17 @@ export async function DELETE(
     // ── 2. Deduct XP from user & recalculate level ────────────────────────
     const user = await User.findById(authUser.userId)
     if (user && totalXPToDeduct > 0) {
-      user.totalXP = Math.max(0, user.totalXP - totalXPToDeduct)
-      user.bodyXP = Math.max(0, user.bodyXP - xpByCategory['Body'])
-      user.skillsXP = Math.max(0, user.skillsXP - xpByCategory['Skills'])
-      user.mindsetXP = Math.max(0, user.mindsetXP - xpByCategory['Mindset'])
-      user.careerXP = Math.max(0, user.careerXP - xpByCategory['Career'])
-      user.level = calcLevel(user.totalXP)
+      if (isCustomRoadmap) {
+        // Custom roadmaps only affected customXP — deduct from there only
+        user.customXP = Math.max(0, (user.customXP || 0) - totalXPToDeduct)
+      } else {
+        user.totalXP = Math.max(0, user.totalXP - totalXPToDeduct)
+        user.bodyXP = Math.max(0, user.bodyXP - xpByCategory['Body'])
+        user.skillsXP = Math.max(0, user.skillsXP - xpByCategory['Skills'])
+        user.mindsetXP = Math.max(0, user.mindsetXP - xpByCategory['Mindset'])
+        user.careerXP = Math.max(0, user.careerXP - xpByCategory['Career'])
+        user.level = calcLevel(user.totalXP)
+      }
       await user.save()
     }
 

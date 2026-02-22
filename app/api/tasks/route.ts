@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
     const task = dayData.tasks.find(t => t.title === taskTitle)
     if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
 
+    // ── Is this a custom (user-built) roadmap? ───────────────────────────
+    // Custom roadmap XP goes to customXP — NOT totalXP/category fields.
+    // This keeps the competitive leaderboard (sorted by totalXP) fair.
+    const isCustomRoadmap = roadmap.isCustom === true
+
     // Find existing progress
     const existing = await TaskProgress.findOne({
       userId: authUser.userId,
@@ -45,7 +50,6 @@ export async function POST(req: NextRequest) {
     const category = task.category
 
     if (!existing) {
-      // Create new progress record
       await TaskProgress.create({
         userId: authUser.userId,
         roadmapId,
@@ -68,26 +72,34 @@ export async function POST(req: NextRequest) {
     if (completed !== wasCompleted) {
       const xpDelta = completed ? xpToAward : -xpToAward
 
-      const categoryField =
-        category === 'Body'
-          ? 'bodyXP'
-          : category === 'Skills'
-          ? 'skillsXP'
-          : category === 'Mindset'
-          ? 'mindsetXP'
-          : 'careerXP'
-
       const user = await User.findById(authUser.userId)
       if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-      user.totalXP = Math.max(0, user.totalXP + xpDelta)
-      user[categoryField as keyof typeof user] = Math.max(
-        0,
-        (user[categoryField as keyof typeof user] as number) + xpDelta
-      ) as never
-      user.level = calcLevel(user.totalXP)
+      if (isCustomRoadmap) {
+        // ── Custom roadmap: credit customXP only ──────────────────────────
+        // totalXP, level, and category XP are intentionally NOT updated.
+        // The leaderboard reads totalXP, so this change has zero leaderboard impact.
+        user.customXP = Math.max(0, (user.customXP || 0) + xpDelta)
+      } else {
+        // ── AI roadmap: credit totalXP + category as usual ────────────────
+        const categoryField =
+          category === 'Body'
+            ? 'bodyXP'
+            : category === 'Skills'
+              ? 'skillsXP'
+              : category === 'Mindset'
+                ? 'mindsetXP'
+                : 'careerXP'
 
-      // Streak logic
+        user.totalXP = Math.max(0, user.totalXP + xpDelta)
+        user[categoryField as keyof typeof user] = Math.max(
+          0,
+          (user[categoryField as keyof typeof user] as number) + xpDelta
+        ) as never
+        user.level = calcLevel(user.totalXP)
+      }
+
+      // Streak logic — same regardless of roadmap type (activity = activity)
       if (completed) {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
@@ -96,7 +108,7 @@ export async function POST(req: NextRequest) {
           lastActive.setHours(0, 0, 0, 0)
           const diffDays = Math.floor((today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24))
           if (diffDays === 0) {
-            // Same day, no change
+            // Same day — no change
           } else if (diffDays === 1) {
             user.streak = user.streak + 1
             user.lastActiveDate = today
@@ -127,7 +139,9 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        xpDelta,
+        xpDelta: isCustomRoadmap ? 0 : xpDelta,   // client only shows XP pop for AI roadmaps
+        customXpDelta: isCustomRoadmap ? xpDelta : 0,
+        isCustomRoadmap,
         newTotalXP: user.totalXP,
         newLevel: user.level,
         newStreak: user.streak,

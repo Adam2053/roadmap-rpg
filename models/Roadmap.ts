@@ -11,6 +11,10 @@ export interface IRoadmap extends Document {
   weeklyPlan: RoadmapWeek[]
   progress: number
   isPublic: boolean
+  // true = user-built custom roadmap; XP from these goes to customXP, not totalXP
+  isCustom: boolean
+  // denormalized star count — kept in sync by the star toggle API
+  starCount: number
   createdAt: Date
   updatedAt: Date
 }
@@ -55,6 +59,8 @@ const RoadmapSchema = new Schema<IRoadmap>(
     weeklyPlan: [WeekSchema],
     progress: { type: Number, default: 0, min: 0, max: 100 },
     isPublic: { type: Boolean, default: false },
+    isCustom: { type: Boolean, default: false },
+    starCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 )

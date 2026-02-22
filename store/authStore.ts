@@ -11,6 +11,7 @@ export interface UserState {
   skillsXP: number
   mindsetXP: number
   careerXP: number
+  customXP: number
 }
 
 interface AuthStore {
@@ -35,10 +36,10 @@ export const useAuthStore = create<AuthStore>((set) => ({
         category === 'Body'
           ? 'bodyXP'
           : category === 'Skills'
-          ? 'skillsXP'
-          : category === 'Mindset'
-          ? 'mindsetXP'
-          : 'careerXP'
+            ? 'skillsXP'
+            : category === 'Mindset'
+              ? 'mindsetXP'
+              : 'careerXP'
 
       return {
         user: {
