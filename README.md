@@ -215,6 +215,3 @@ CMD ["npm", "start"]
 - Use MongoDB Atlas with proper IP allowlisting
 - Set `NEXT_PUBLIC_APP_URL` to your production domain
 
-## 📝 License
-
-MIT
